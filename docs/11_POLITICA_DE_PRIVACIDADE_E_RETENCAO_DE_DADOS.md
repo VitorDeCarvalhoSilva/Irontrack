@@ -32,9 +32,13 @@ corpo e desempenho físico do titular.
    existe para cobrir o caso de solicitação acidental ou conta comprometida
    por terceiro mal-intencionado.
 3. **Cancelamento da exclusão:** dentro dos 30 dias, o usuário pode
-   solicitar a reativação (via um fluxo equivalente ao "esqueci minha
-   senha" — comprovação de posse do e-mail cadastrado) para reverter
-   `deletion_requested_at` para `NULL`.
+   reverter `deletion_requested_at` para `NULL` informando e-mail e senha
+   (`POST /auth/cancel-deletion`, §D abaixo) — a mesma prova de posse de
+   senha já usada para *solicitar* a exclusão (passo 1 acima), sem
+   necessidade de um token/link por e-mail separado: a conta já está
+   inacessível via login normal enquanto a exclusão está pendente, então a
+   senha sozinha já é prova suficiente, sem risco adicional de sessão
+   sequestrada a mitigar.
 4. **Exclusão física (hard delete) após 30 dias:** um job agendado
    (`@Scheduled`, diário) varre `users` com `deletion_requested_at` mais
    antigo que 30 dias e executa `DELETE FROM users WHERE id = ...`. Graças
@@ -87,8 +91,10 @@ POST   /api/v1/auth/cancel-deletion
   todos os `refresh_tokens` e remove `push_subscriptions`. Response `202
   Accepted` com `{ "deletionScheduledFor": "2026-08-06T00:00:00.000Z" }`
   (data = agora + 30 dias).
-* **`POST /auth/cancel-deletion`** — mesmo mecanismo de prova de posse
-  de `POST /auth/forgot-password` (link por e-mail). Seta
+* **`POST /auth/cancel-deletion`** — Request: `{ "email": "...", "password": "..." }`.
+  Reverifica a senha (mesmo mecanismo de `DELETE /users/me`, sem token/link
+  por e-mail — a conta já está bloqueada de login enquanto a exclusão está
+  pendente, então a senha sozinha já é prova suficiente). Seta
   `deletion_requested_at = NULL`. Response `200 OK`.
 * Login (`POST /auth/login`, §2.2) passa a retornar `403 Forbidden` também
   quando `deletion_requested_at IS NOT NULL` (mesma família de erro do

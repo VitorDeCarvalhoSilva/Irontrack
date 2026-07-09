@@ -7,7 +7,7 @@ Este documento descreve detalhadamente a especificação e os contratos de paylo
 ## 1. Diretrizes de Escopo e Padrões Globais
 
 ### 1.1. Escopo Restrito (Musculação e Hipertrofia)
-De acordo com o direcionamento do projeto, esta API foca **exclusivamente na prática de musculação, força e hipertrofia em ambiente de academia**. Os contratos foram desenhados para capturar métricas de carga (*weight*), repetições (*reps*), séries (*sets*), percepção de esforço (*RPE*) e técnicas de intensificação (falha, drop-set, rest-pause, pausa, negativa forçada). Parâmetros e tabelas relacionados a holds isométricos ou estágios de habilidades calistênicas estão desabilitados ou omitidos desta camada de transporte para simplificar a integração com a UI.
+De acordo com o direcionamento do projeto, esta API foca **exclusivamente na prática de musculação, força e hipertrofia em ambiente de academia**. Os contratos foram desenhados para capturar métricas de carga (*weight*), repetições (*reps*), séries (*sets*), percepção de esforço (*RPE*) e técnicas de intensificação (falha, drop-set, rest-pause, pausa, negativa forçada). Não há suporte a nenhuma outra modalidade de treino em nenhuma camada do sistema — schema, contrato ou UI (`01_ARQUITETURA_E_PADROES.md` §7, `13_ADR_LOG.md` ADR-016).
 
 ### 1.2. Padrões de Comunicação
 * **Protocolo:** HTTP/1.1 sobre SSL/TLS (HTTPS).
@@ -46,7 +46,7 @@ Efetua o cadastro de um novo praticante de musculação.
 ```json
 {
   "name": "Gabriel Silva",
-  "email": "gabriel.calistenia@email.com",
+  "email": "gabriel.silva@email.com",
   "password": "SenhaSegura123!"
 }
 ```
@@ -56,12 +56,13 @@ Efetua o cadastro de um novo praticante de musculação.
 {
   "id": "usr-9a2f-4881",
   "name": "Gabriel Silva",
-  "email": "gabriel.calistenia@email.com",
-  "emailVerifiedAt": null,
+  "email": "gabriel.silva@email.com",
+  "emailVerifiedAt": "2026-07-01T10:00:00.000Z",
   "createdAt": "2026-07-01T10:00:00.000Z"
 }
 ```
-* **Regra de negócio:** o registro gera `email_verification_token_hash`/`email_verification_expires_at` (`02_SCHEMA_SQLITE.md`, tabela `users`) e dispara o e-mail de verificação via `EmailService`. `emailVerifiedAt` começa `null` e só é preenchido por `GET /auth/verify-email/{token}` (§2.4).
+* **Regra de negócio:** o registro seta `email_verified_at = now()` automaticamente — **verificação de e-mail está temporariamente desativada no fluxo ativo** (`13_ADR_LOG.md` ADR-018). Nenhum token de verificação é gerado, nenhum e-mail é disparado por este endpoint. As colunas `email_verification_token_hash`/`email_verification_expires_at` (`02_SCHEMA_SQLITE.md`) permanecem no schema, dormentes, para reativação futura sem nova migração.
+* **Erros:** `422 Unprocessable Entity` (`errorCode: EMAIL_ALREADY_REGISTERED`) se `email` já existir em `users` (`14_CATALOGO_DE_ERROS_DE_NEGOCIO.md`).
 
 ---
 
@@ -71,7 +72,7 @@ Autentica o usuário e devolve a dupla de tokens de acesso JWT.
 * **Request Body:**
 ```json
 {
-  "email": "gabriel.calistenia@email.com",
+  "email": "gabriel.silva@email.com",
   "password": "SenhaSegura123!"
 }
 ```
@@ -84,7 +85,7 @@ Autentica o usuário e devolve a dupla de tokens de acesso JWT.
 }
 ```
 * **Regras de negócio:**
-  1. Retorna `403 Forbidden` se `users.email_verified_at IS NULL` — o usuário não pode logar sem verificar o e-mail primeiro (`00_PRD_IRONTRACK.md` §4.3).
+  1. ~~Retorna `403 Forbidden` se `users.email_verified_at IS NULL`~~ — checagem **desativada** (`13_ADR_LOG.md` ADR-018): todo registro já nasce com `email_verified_at` preenchido, então esta condição nunca mais é verdadeira no fluxo ativo. O `errorCode: EMAIL_NOT_VERIFIED` (`14_CATALOGO_DE_ERROS_DE_NEGOCIO.md`) fica dormente, não removido.
   2. Um login bem-sucedido cria uma nova linha em `refresh_tokens` (`02_SCHEMA_SQLITE.md`) correspondente ao `refreshToken` emitido.
   3. O bloqueio temporário de 15 minutos após 5 falhas consecutivas já está especificado em `05_DEVOPS_E_SEGURANCA.md` §E.2 — não reescrito aqui, apenas referenciado.
 
@@ -98,7 +99,7 @@ Recupera os detalhes de perfil do usuário logado baseado no token de autentica�
 {
   "id": "usr-9a2f-4881",
   "name": "Gabriel Silva",
-  "email": "gabriel.calistenia@email.com",
+  "email": "gabriel.silva@email.com",
   "emailVerifiedAt": "2026-07-01T10:05:00.000Z",
   "createdAt": "2026-07-01T10:00:00.000Z"
 }
@@ -131,13 +132,19 @@ Revoga um refresh token, encerrando a sessão correspondente no dispositivo.
 
 ---
 
-### 2.6. `GET /api/v1/auth/verify-email/{token}`
+### 2.6. `GET /api/v1/auth/verify-email/{token}` (dormente)
 Confirma o e-mail do usuário a partir do link enviado no cadastro (§2.1) ou após troca de e-mail (§2.8).
+
+> **Dormente (`13_ADR_LOG.md` ADR-018):** com o registro já auto-verificando
+> a conta (§2.1) e sem geração de token, nenhum fluxo ativo hoje produz um
+> `{token}` válido para este endpoint — ele continua implementado e
+> alcançável, mas não é chamado por nenhuma tela em uso. Mantido para
+> reativação futura sem retrabalho.
 
 * **Regra de negócio:** `{token}` é o valor bruto enviado por e-mail; o backend calcula o hash e compara com `users.email_verification_token_hash`, validando `email_verification_expires_at`. Em caso de sucesso, seta `email_verified_at = now()` e limpa os campos de token (`email_verification_token_hash`, `email_verification_expires_at`).
 * **Response (200 OK):**
 ```json
-{ "email": "gabriel.calistenia@email.com", "verifiedAt": "2026-07-01T10:05:00.000Z" }
+{ "email": "gabriel.silva@email.com", "verifiedAt": "2026-07-01T10:05:00.000Z" }
 ```
 * **Erros:** `400 Bad Request` se o token for inválido ou já expirado.
 
@@ -148,7 +155,7 @@ Fluxo de recuperação de senha em duas etapas.
 
 * **`POST /auth/forgot-password`** — Request:
   ```json
-  { "email": "gabriel.calistenia@email.com" }
+  { "email": "gabriel.silva@email.com" }
   ```
   **Sempre** responde `202 Accepted` com uma mensagem genérica, independentemente de o e-mail existir na base ou não (evita enumeração de usuários). Se o e-mail existir, gera `password_reset_token_hash` + `password_reset_expires_at` (validade de **1 hora**, `00_PRD_IRONTRACK.md` §4.3) e dispara o e-mail com o link de redefinição.
 
@@ -208,9 +215,13 @@ Solicita a exclusão da conta do usuário autenticado (`11_POLITICA_DE_PRIVACIDA
 ### 2.11. `POST /api/v1/auth/cancel-deletion`
 Cancela uma exclusão de conta solicitada, dentro do período de carência.
 
-* **Regra de negócio:** mesmo mecanismo de prova de posse de `POST /auth/forgot-password` (§2.7) — envia link por e-mail; ao ser confirmado, seta `users.deletion_requested_at = NULL`.
+* **Request Body:**
+```json
+{ "email": "gabriel.silva@email.com", "password": "SenhaAtual123!" }
+```
+* **Regra de negócio:** endpoint público (a conta está bloqueada de login enquanto `deletion_requested_at` estiver preenchido, então não há sessão ativa para reautenticar). Valida `email`/`password` contra `password_hash` — **mesma verificação de posse de senha usada em `DELETE /users/me` (§2.10)**, sem necessidade de um token/link por e-mail separado (simplificação deliberada: a prova de posse de senha já é suficiente, e a conta já está inacessível via login normal, então não há risco adicional de sequestro de sessão a mitigar aqui). Se as credenciais conferem e `deletion_requested_at IS NOT NULL`, seta `deletion_requested_at = NULL`.
 * **Response (200 OK)**.
-* **Erros:** `400 Bad Request` se não houver exclusão pendente para o e-mail informado, ou se o período de carência já tiver expirado.
+* **Erros:** `401 Unauthorized` se `email`/`password` não conferirem; `400 Bad Request` (`NO_PENDING_DELETION`) se não houver exclusão pendente para a conta.
 
 ---
 
@@ -245,6 +256,7 @@ Cria um novo ciclo de planejamento de treinos com foco em hipertrofia ou força.
 ### 3.2. `GET /api/v1/cycles/active`
 Obtém os dados completos do ciclo que está ativo no momento para o usuário autenticado, listando de forma aninhada todos os dias de treino configurados para este ciclo.
 
+* **Regra de negócio — `nextSuggestedTrainingDayId`:** calculado, nunca persistido. Busca a sessão `COMPLETED` mais recente do usuário dentro deste ciclo; sugere o próximo `training_day` por `orderIndex` (voltando ao primeiro após o último — ex: A→B→C→A). Se não houver nenhuma sessão `COMPLETED` ainda no ciclo, sugere o primeiro dia (`orderIndex = 1`). Propositalmente simples: não considera dia da semana, nem permite pular um dia — é apenas "o que vem depois do último treinado".
 * **Response (200 OK):**
 ```json
 {
@@ -255,6 +267,7 @@ Obtém os dados completos do ciclo que está ativo no momento para o usuário au
   "endDate": null,
   "archivedAt": null,
   "createdAt": "2026-07-01T10:05:00.000Z",
+  "nextSuggestedTrainingDayId": "day-4a52-1f3c",
   "trainingDays": [
     {
       "id": "day-3a21-9d8a",
@@ -473,7 +486,7 @@ Reordena os exercícios do template do dia.
 
 ---
 
-## 4. Biblioteca de Exercícios (Focus: Gym / Strength)
+## 4. Biblioteca de Exercícios
 
 ### 4.1. `GET /api/v1/exercises`
 Retorna a lista de exercícios disponíveis para compor os treinos. Pode ser filtrada por grupo muscular e distinção entre padrão ou customizados criados pelo próprio usuário.
@@ -492,21 +505,18 @@ Retorna a lista de exercícios disponíveis para compor os treinos. Pode ser fil
     "id": "exe-0001-bench",
     "name": "Supino Reto com Barra",
     "primaryMuscle": "Peito",
-    "type": "STRENGTH",
     "loadIncrementKg": 2.5
   },
   {
     "id": "exe-0005-incline-db",
     "name": "Supino Inclinado com Halteres",
     "primaryMuscle": "Peito",
-    "type": "STRENGTH",
     "loadIncrementKg": 2.5
   },
   {
     "id": "exe-0009-pec-deck",
     "name": "Crucifixo Máquina (Pec Deck)",
     "primaryMuscle": "Peito",
-    "type": "STRENGTH",
     "loadIncrementKg": 2.5
   }
 ]
@@ -533,7 +543,6 @@ Permite ao usuário cadastrar um exercício de musculação personalizado na bib
   "id": "exe-9f8e-4a3b",
   "name": "Supino Inclinado Articulado Convergente",
   "primaryMuscle": "Peito",
-  "type": "STRENGTH",
   "isCustom": true,
   "loadIncrementKg": 2.5,
   "createdAt": "2026-07-01T15:10:00.000Z"
@@ -643,9 +652,6 @@ Adiciona ou atualiza uma série executada no exercício dentro da sessão atual.
   "weight": 80.5,
   "reps": 10,
   "repsTarget": 10,
-  "holdTimeSeconds": null,
-  "holdTimeTarget": null,
-  "progressionStepId": null,
   "rpe": 8,
   "techniques": ["DROP_SET"],
   "notes": "Pausa técnica de 2 seg",

@@ -54,9 +54,9 @@ A tabela abaixo mapeia, por sprint, quais artefatos concretos nascem em cada pas
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | 0 | — | `common/Button`, `common/Input`, `common/Card`, `common/Modal`, `layout/Header`, `layout/TabBar` | — | — | `apiClient.ts` (base, sem refresh) | — |
 | 1 | `Auth/LoginScreen`, `Auth/RegisterScreen`, `Auth/VerifyEmailScreen`, `Auth/ForgotPasswordScreen`, `Auth/ResetPasswordScreen`, `Profile/ProfileScreen` | `navigation/RootNavigator`, `navigation/AuthStack`, `navigation/AppStack` | `useAuth` | `AuthContext` | `authService.ts`, `userService.ts` (interceptor de refresh em `apiClient.ts`) | `auth.types.ts` (`User`, `AuthTokens`) |
-| 2 | `WorkoutCycle/CyclesListScreen`, `WorkoutCycle/CycleFormScreen`, `Exercises/ExercisesLibraryScreen` | `WorkoutCycle/DayCard`, `WorkoutCycle/DayExerciseRow` | — | — | `cyclesService.ts`, `exercisesService.ts` | `cycle.types.ts`, `exercise.types.ts` |
-| 3 | `ActiveWorkout/ActiveWorkoutScreen` | `ActiveWorkout/WorkoutHeader`, `ActiveWorkout/ExerciseCard`, `ActiveWorkout/SetRow`, `ActiveWorkout/SetRowForm`, `ActiveWorkout/RestTimerModal`, `ActiveWorkout/SuggestionBadge`, `ActiveWorkout/FinishWorkoutDialog` | `ActiveWorkout/useActiveWorkout`, `ActiveWorkout/useRestTimer` | `WorkoutSessionContext` | `workoutService.ts` | `workout.types.ts` (`WorkoutSet`, `RegisterSetPayload`, `SetTechnique`, `LoadSuggestion`) |
-| 4 | `Dashboard/DashboardScreen` (métricas/alertas), `Metrics/MetricsScreen` | `Dashboard/StagnationAlertBanner`, `Metrics/HistoryChart`, `Metrics/FrequencyChart`, `Metrics/MuscleGroupChart`, `Metrics/PrCard` (todos via Victory Native) | — | — | `metricsService.ts`, `alertsService.ts` | `metrics.types.ts`, `alert.types.ts` |
+| 2 | `Dashboard/DashboardScreen` (versão inicial: ciclo ativo + dia sugerido), `WorkoutCycle/CyclesListScreen`, `WorkoutCycle/CycleFormScreen`, `Exercises/ExercisesLibraryScreen` | `WorkoutCycle/DayCard`, `WorkoutCycle/DayExerciseRow` | — | — | `cyclesService.ts`, `exercisesService.ts` | `cycle.types.ts`, `exercise.types.ts` |
+| 3 | `ActiveWorkout/ActiveWorkoutScreen`, `SessionHistory/SessionHistoryScreen` | `ActiveWorkout/WorkoutHeader`, `ActiveWorkout/ExerciseCard`, `ActiveWorkout/SetRow`, `ActiveWorkout/SetRowForm`, `ActiveWorkout/RestTimerModal`, `ActiveWorkout/SuggestionBadge`, `ActiveWorkout/FinishWorkoutDialog` | `ActiveWorkout/useActiveWorkout`, `ActiveWorkout/useRestTimer` | `WorkoutSessionContext` | `workoutService.ts`, `sessionsService.ts` | `workout.types.ts` (`WorkoutSet`, `RegisterSetPayload`, `SetTechnique`, `LoadSuggestion`) |
+| 4 | `Dashboard/DashboardScreen` (adiciona métricas/alertas), `Metrics/MetricsScreen` | `Dashboard/StagnationAlertBanner`, `Dashboard/OverviewCards`, `Metrics/HistoryChart`, `Metrics/FrequencyChart`, `Metrics/MuscleGroupChart`, `Metrics/PrCard` (todos via Victory Native) | — | — | `metricsService.ts`, `alertsService.ts` | `metrics.types.ts`, `alert.types.ts` |
 | 5 | — | `layout/OfflineBanner`, `Profile/PushPreferencesForm` | `useNetworkStatus` | `NetworkStatusContext` | `storage/workoutStore.ts` (via AsyncStorage), `pushService.ts` | `sync.types.ts` (`SyncQueueItem`) |
 
 ---
@@ -65,7 +65,7 @@ A tabela abaixo mapeia, por sprint, quais artefatos concretos nascem em cada pas
 
 ### C.0. Sprint 0 — Fundação Técnica
 
-1. Setup do projeto via `npx create-expo-app` (template TypeScript).
+1. Setup do projeto via `npx create-expo-app` (template TypeScript), com o **Expo SDK travado na versão 54** (`01_ARQUITETURA_E_PADROES.md` §3.5, `13_ADR_LOG.md` ADR-017) — nunca escalonar via `@latest` sem fixar a versão em seguida (`npx expo install expo@54.0.0 && npx expo install --fix`).
 2. Configuração do `eas.json` (perfis `development`/`preview`/`production`, `05_DEVOPS_E_SEGURANCA.md` §A.2) e `app.json`/`app.config.ts` (nome do app, ícone, splash screen, `bundleIdentifier` iOS, `package` Android).
 3. ESLint/Prettier (`01_ARQUITETURA_E_PADROES.md` §5).
 4. Estrutura de pastas completa da Seção B acima.
@@ -73,12 +73,13 @@ A tabela abaixo mapeia, por sprint, quais artefatos concretos nascem em cada pas
 6. Componentes visuais atômicos de `components/common/`: `Button`, `Input`, `Card`, `Modal`, estilizados com **NativeWind** — já respeitando Touch Targets (`04_FRONTEND_UI_COMPONENTES.md` §C.2) e `keyboardType` correto para campos numéricos (§C.1).
 7. Configuração do NativeWind (`tailwind.config.js`, babel plugin `nativewind`).
 8. Configuração do **React Navigation**: `RootNavigator` esqueleto (alternância `AuthStack`/`AppStack` observando um `AuthContext` ainda vazio), sem telas de negócio implementadas ainda.
+9. Instalação de `react-hook-form` + `zod` + `@hookform/resolvers/zod` (`01_ARQUITETURA_E_PADROES.md` §3.4, `13_ADR_LOG.md` ADR-015) — decisão fechada de validação de formulário, usada por toda tela com formulário a partir da Sprint 1 (Seção C.1 abaixo).
 
 ### C.1. Sprint 1 — Autenticação e Perfil
 
 1. `AuthContext` + hook `useAuth` — estado de sessão (usuário autenticado, tokens).
-2. Telas: `LoginScreen` (`POST /auth/login`, `03_CONTRATOS_API.md` §2.2), `RegisterScreen` (`POST /auth/register`, §2.1), `VerifyEmailScreen` (`GET /auth/verify-email/{token}`, §2.6, acessada via deep link), `ForgotPasswordScreen` (`POST /auth/forgot-password`, §2.7), `ResetPasswordScreen` (`POST /auth/reset-password`, §2.7, via deep link).
-3. `ProfileScreen` com edição de perfil (`PATCH /users/me`, §2.8), troca de senha (`POST /users/me/change-password`, §2.9) e a seção de preferências de push (`04_FRONTEND_UI_COMPONENTES.md` §A) — a **UI** de preferências nasce aqui como formulário estático; a **ativação real** via `expo-notifications` (`Notifications.requestPermissionsAsync()`/`getExpoPushTokenAsync()`) e as chamadas a `POST`/`DELETE /users/me/push-subscription` (§7.3-§7.4) ficam para a Sprint 5.
+2. Telas: `LoginScreen` (`POST /auth/login`, `03_CONTRATOS_API.md` §2.2), `RegisterScreen` (`POST /auth/register`, §2.1), `VerifyEmailScreen` (`GET /auth/verify-email/{token}`, §2.6, acessada via deep link), `ForgotPasswordScreen` (`POST /auth/forgot-password`, §2.7), `ResetPasswordScreen` (`POST /auth/reset-password`, §2.7, via deep link). Todo formulário desta lista (`LoginScreen`, `RegisterScreen`, `ForgotPasswordScreen`, `ResetPasswordScreen`) usa **`react-hook-form` + `zod`** (`01_ARQUITETURA_E_PADROES.md` §3.4, instalado na Sprint 0) — nunca `useState` manual para controle/validação de campo.
+3. `ProfileScreen` (também via `react-hook-form`/`zod`, `01` §3.4) com edição de perfil (`PATCH /users/me`, §2.8), troca de senha (`POST /users/me/change-password`, §2.9) e a seção de preferências de push (`04_FRONTEND_UI_COMPONENTES.md` §A) — a **UI** de preferências nasce aqui como formulário estático; a **ativação real** via `expo-notifications` (`Notifications.requestPermissionsAsync()`/`getExpoPushTokenAsync()`) e as chamadas a `POST`/`DELETE /users/me/push-subscription` (§7.3-§7.4) ficam para a Sprint 5. Incluir também o botão "Excluir conta" (`DELETE /users/me`, §2.10, com diálogo de confirmação de senha). O cancelamento (`POST /auth/cancel-deletion`, §2.11, agora reverificação direta de `email`/`password`, sem token) não tem tela própria: em `LoginScreen`, ao receber o erro `ACCOUNT_PENDING_DELETION` (403), exiba inline um botão "Cancelar exclusão da conta" que reenvia o `email`/`password` já digitados no formulário para esse endpoint.
 4. Interceptor de refresh automático em `apiClient.ts` (`01_ARQUITETURA_E_PADROES.md` §4.2): intercepta `401`, chama `POST /auth/refresh` (§2.4) uma única vez, e refaz a chamada original com o novo `accessToken`; falha do refresh limpa a sessão e navega para `AuthStack`.
 5. `navigation/RootNavigator`, `AuthStack`, `AppStack` — guarda de navegação consumindo `AuthContext` (`04_FRONTEND_UI_COMPONENTES.md` §A.1).
 6. **Armazenamento de tokens:** o `refreshToken` é persistido via **`expo-secure-store`** (`SecureStore`) — não `AsyncStorage` puro. `SecureStore` usa Keychain (iOS)/Keystore (Android), apropriado para dados sensíveis, ao contrário do `AsyncStorage` (key-value simples sem criptografia, adequado para o snapshot de treino da Sprint 3, mas não para tokens de autenticação). O `accessToken` vive apenas em memória (estado do `AuthContext`), reidratado via *silent refresh* no mount do app a partir do `refreshToken` em `SecureStore`.
@@ -86,9 +87,10 @@ A tabela abaixo mapeia, por sprint, quais artefatos concretos nascem em cada pas
 ### C.2. Sprint 2 — Gestão de Ciclos de Treino
 
 1. `CyclesListScreen` — lista de ciclos com ações de ativar (`PATCH /cycles/{cycleId}/activate`, `03_CONTRATOS_API.md` §3.7) e arquivar (`DELETE /cycles/{cycleId}`, §3.6), com badge visual "Arquivado" para ciclos com `archivedAt` não-nulo.
-2. `CycleFormScreen` — árvore completa já especificada em `04_FRONTEND_UI_COMPONENTES.md` §A: criação do ciclo (§3.1), CRUD e reordenação de dias (§3.8-§3.11), CRUD e reordenação de exercícios do template do dia (§3.12-§3.15), via os componentes de apoio `WorkoutCycle/DayCard` e `WorkoutCycle/DayExerciseRow`. Adaptado à navegação nativa: pode usar um fluxo de múltiplos passos com nested stack do React Navigation em vez de uma tela longa com scroll.
-3. `ExercisesLibraryScreen` — biblioteca de exercícios (`GET /exercises`, §4.1), criação (`POST /exercises`, §4.2) e edição/remoção (`PATCH`/`DELETE /exercises/{exerciseId}`, §4.3-§4.4) visíveis apenas em exercícios `isCustom = true` do próprio usuário.
-4. `services/cyclesService.ts`, `services/exercisesService.ts`.
+2. `CycleFormScreen` (formulários via `react-hook-form`/`zod`, `01_ARQUITETURA_E_PADROES.md` §3.4) — árvore completa já especificada em `04_FRONTEND_UI_COMPONENTES.md` §A: criação do ciclo (§3.1), CRUD e reordenação de dias (§3.8-§3.11), CRUD e reordenação de exercícios do template do dia (§3.12-§3.15), via os componentes de apoio `WorkoutCycle/DayCard` e `WorkoutCycle/DayExerciseRow`. Adaptado à navegação nativa: pode usar um fluxo de múltiplos passos com nested stack do React Navigation em vez de uma tela longa com scroll.
+3. `ExercisesLibraryScreen` — biblioteca de exercícios (`GET /exercises`, §4.1), criação (`POST /exercises`, §4.2, formulário via `react-hook-form`/`zod`) e edição/remoção (`PATCH`/`DELETE /exercises/{exerciseId}`, §4.3-§4.4) visíveis apenas em exercícios `isCustom = true` do próprio usuário.
+4. `DashboardScreen` (versão inicial) — exibe o ciclo ativo e o `nextSuggestedTrainingDayId` retornados por `GET /cycles/active` (`03_CONTRATOS_API.md` §3.2). O botão **"Iniciar Treino"** já aparece na UI, mas sua integração real com `POST /sessions/start` só é ligada na Sprint 3 (task 5 de `C.3` abaixo) — nesta sprint ele pode ficar desabilitado ou navegar para um placeholder, já que `ActiveWorkoutScreen` ainda não existe.
+5. `services/cyclesService.ts`, `services/exercisesService.ts`.
 
 ### C.3. Sprint 3 — Registro de Sessões (Tela Crítica)
 
@@ -98,13 +100,16 @@ Esta sprint **não introduz nenhuma decisão nova** além do que `04_FRONTEND_UI
 2. Regras de UX da Seção C de `04`: inputs numéricos com `keyboardType` nativo (C.1), Touch Targets mínimos (C.2), feedback visual imediato de superação de carga/PR via `react-native-reanimated` (C.3).
 3. Gerenciamento de estado da Seção D de `04`: `WorkoutSessionContext` via `useReducer` (D.1) e a estratégia de Auto-save assíncrona-local-antes-da-rede via `AsyncStorage` (D.2), com os hooks `useActiveWorkout` e `useRestTimer`.
 4. `services/workoutService.ts` — integração com `POST /sessions/start` (§5.1), `POST .../sets` (§5.2, com `clientGeneratedId` obrigatório para idempotência), `PATCH`/`DELETE .../sets/{setId}` (§5.3-§5.4), `PATCH .../finish` (§5.5).
+5. Ligar o botão **"Iniciar Treino"** da `DashboardScreen` (criada na Sprint 2, task 4) a `services/workoutService.ts`: ao tocar, chama `POST /sessions/start` com o `trainingDayId` sugerido (ou outro escolhido pelo usuário), e navega para `ActiveWorkoutScreen` com o `sessionId` retornado.
+6. `SessionHistoryScreen` (`04_FRONTEND_UI_COMPONENTES.md` §A) — lista via `GET /sessions` (§5.6, filtro simples por `trainingDayId`) com data/dia/duração/volume por item; detalhe somente-leitura via `GET /sessions/{sessionId}` (§5.7). Acessível por um botão "Histórico" na `DashboardScreen`. `services/sessionsService.ts`.
 
 ### C.4. Sprint 4 — Métricas e Sobrecarga Progressiva
 
 1. `MetricsScreen` (`04_FRONTEND_UI_COMPONENTES.md` §A): `Metrics/HistoryChart` (`GET .../history`, §6.1), `Metrics/PrCard` (`GET .../pr`, §6.3), `Metrics/FrequencyChart` (`GET /metrics/frequency`, §6.5), `Metrics/MuscleGroupChart` (`GET /metrics/muscle-groups`, §6.6) — todos os gráficos renderizados com **Victory Native** (decisão registrada em `04_FRONTEND_UI_COMPONENTES.md` §A).
 2. `ActiveWorkout/SuggestionBadge` (já existente na árvore de `04` §B.3) — ligado a `GET /sessions/{sessionId}/exercises/{sessionExerciseId}/suggestion` (§6.2).
 3. `Dashboard/StagnationAlertBanner` na `DashboardScreen` (`04_FRONTEND_UI_COMPONENTES.md` §A) — consome `GET /alerts` (§7.1) e `POST /alerts/{alertId}/snooze` (§7.2) inline.
-4. `services/metricsService.ts`, `services/alertsService.ts`.
+4. `Dashboard/OverviewCards` na `DashboardScreen` (`04_FRONTEND_UI_COMPONENTES.md` §A) — bloco de métricas gerais consumindo `GET /metrics/overview` (§6.4: sessões da semana/mês, volume da semana/mês, streak de dias).
+5. `services/metricsService.ts`, `services/alertsService.ts`.
 
 ### C.5. Sprint 5 — Offline-First Nativo e Notificações
 

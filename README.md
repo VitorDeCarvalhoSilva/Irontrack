@@ -8,10 +8,14 @@ treino e, com base nesse histórico, aplica o princípio da **sobrecarga
 progressiva** via um método de **dupla progressão** — sugerindo, a cada
 sessão, se você deve subir carga, subir repetições, ou repetir o que fez.
 
-> **Status atual:** projeto em fase de planejamento e documentação
-> arquitetural completa (nenhum código de aplicação foi escrito ainda). Toda
-> a especificação — schema, contratos de API, motor de progressão,
-> roadmaps — está em [`docs/`](docs/) e é a fonte de verdade do projeto.
+> **Status atual:** Sprint 0 e Sprint 1 (`00_PRD_IRONTRACK.md` §4.2/§4.3)
+> **concluídas** em backend e frontend — autenticação (cadastro, login/logout,
+> recuperação de senha, exclusão de conta com carência de 30 dias), perfil de
+> usuário e a identidade visual completa do app (`docs/15`) já funcionam de
+> ponta a ponta. Sprints 2-5 (ciclos de treino, registro de sessões, métricas
+> e offline-first) ainda não foram implementadas. Toda a especificação —
+> schema, contratos de API, motor de progressão, roadmaps — está em
+> [`docs/`](docs/) e é a fonte de verdade do projeto.
 
 ---
 
@@ -53,6 +57,7 @@ documento assume as decisões dos anteriores como já resolvidas.
 | 12 | [GLOSSARIO_DE_DOMINIO](docs/12_GLOSSARIO_DE_DOMINIO.md) | Termos de negócio centrais do produto, centralizados para consulta rápida |
 | 13 | [ADR_LOG](docs/13_ADR_LOG.md) | Histórico de decisões arquiteturais — o quê foi decidido, alternativas consideradas, e por quê |
 | 14 | [CATALOGO_DE_ERROS_DE_NEGOCIO](docs/14_CATALOGO_DE_ERROS_DE_NEGOCIO.md) | Índice único de todas as condições de erro de negócio da API |
+| 15 | [DESIGN_SYSTEM_UI_UX](docs/15_DESIGN_SYSTEM_UI_UX.md) | Sistema de design (paleta, tipografia, ícones, motion) e planejamento de UI tela a tela |
 
 ### Governança de Agentes de IA
 
@@ -68,15 +73,50 @@ na raiz do repositório governam esse trabalho:
 
 ---
 
-## Como Contribuir / Rodar Localmente
+## Como Rodar Localmente
 
-🚧 **Em breve.** Como o projeto ainda está na fase de documentação
-arquitetural (nenhum código de backend ou frontend foi escrito), esta seção
-será preenchida com um tutorial completo de setup local — `docker-compose up`
-para o backend, `npx expo start` para o frontend, variáveis de ambiente
-necessárias — assim que a Sprint 0 (`00_PRD_IRONTRACK.md` §4.2,
-`07_ROADMAP_BACKEND.md`/`08_ROADMAP_FRONTEND.md` Sprint 0) começar a ser
-implementada.
+### Backend
+
+Requer Java 21. Se não tiver Java/Maven instalados globalmente, use o
+Maven Wrapper já incluso (`backend/mvnw`/`mvnw.cmd`).
+
+```bash
+cd backend
+cp .env.example .env   # ajuste os valores antes de subir em produção; o
+                        # perfil "dev" (application-dev.properties) já traz
+                        # valores seguros de exemplo para rodar local
+./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
+```
+
+A API sobe em `http://localhost:8080/api/v1` (Swagger/OpenAPI em
+`/swagger-ui.html`, `05_DEVOPS_E_SEGURANCA.md`). O banco SQLite de
+desenvolvimento é criado automaticamente em `backend/data/irontrack-dev.db`
+(migrado via Flyway) — nenhum banco externo é necessário.
+
+### Frontend
+
+Requer Node.js e o app **Expo Go** no celular (ou um emulador Android/iOS),
+Expo SDK 54 travado (`13_ADR_LOG.md` ADR-017).
+
+```bash
+cd frontend
+npm install
+cp .env.example .env   # ajuste EXPO_PUBLIC_API_BASE_URL se o backend não
+                        # estiver em localhost:8080 (ex: IP da máquina na
+                        # rede local, para testar em dispositivo físico)
+npx expo start
+```
+
+Escaneie o QR code com o Expo Go (Android) ou a câmera (iOS). Scripts úteis:
+`npm run lint`, `npm run typecheck`, `npm run test`.
+
+### Testes e Verificação
+
+* Backend: `./mvnw test` (cobertura mínima de 80%, gate JaCoCo —
+  `00_PRD_IRONTRACK.md` §4.8).
+* Frontend: `npm run test` (Jest + React Native Testing Library).
+* Ambos os passos acima, mais lint/typecheck limpos, são pré-requisito de
+  Definition of Done para qualquer sprint (`07`/`08`, Seção D de cada um).
 
 ---
 

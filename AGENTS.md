@@ -28,7 +28,7 @@ fora de ordem produz suposições erradas.
 2. `docs/01_ARQUITETURA_E_PADROES.md` — regras de arquitetura, SOLID, nomenclatura, estrutura de pastas. **Sempre leia.**
 3. `docs/02_SCHEMA_SQLITE.md` — schema relacional completo.
 4. `docs/03_CONTRATOS_API.md` — todos os endpoints, request/response DTOs.
-5. `docs/04_FRONTEND_UI_COMPONENTES.md` — arquitetura de UI, navegação, componentes, offline-first.
+5. `docs/04_FRONTEND_UI_COMPONENTES.md` — arquitetura de UI, navegação, componentes, offline-first. Para qualquer tarefa que toque UI/estilo/telas, leia também `docs/15_DESIGN_SYSTEM_UI_UX.md` (paleta, tipografia, ícones, motion, posicionamento tela a tela) logo em seguida.
 6. `docs/05_DEVOPS_E_SEGURANCA.md` — CI/CD, segredos, segurança operacional.
 7. `docs/06_LOGICA_DE_PROGRESSAO.md` — motor de sobrecarga progressiva (regra de negócio mais crítica do produto).
 8. `docs/07_ROADMAP_BACKEND.md` — roadmap de implementação backend, sprint a sprint.
@@ -45,11 +45,13 @@ um dos demais — nunca pule 00/01.
 
 * **Produto:** diário de bordo inteligente para **musculação clássica e
   hipertrofia** (carga, reps, séries, RPE, técnicas de intensificação).
-  Calistenia/isometria **não fazem parte do escopo de produto ativo**
-  (o schema é extensível para isso, mas não é usado).
+  O domínio é **exclusivamente musculação** — nenhuma outra modalidade de
+  treino existe em nenhuma camada, nem mesmo como tolerância de schema
+  (histórico completo em `13_ADR_LOG.md`, ADR-016). Não reintroduza isso
+  sem uma decisão Tipo B explícita.
 * **Stack travada** (não introduza alternativas sem aprovação humana explícita — ver Seção 5):
   * Backend: Java/Spring Boot, **SQLite** (sem Postgres), JWT, Caffeine para rate-limit em memória. **Sem Redis, sem Kubernetes.**
-  * Frontend: **React Native via Expo** (EAS Build/Submit/Update), React Navigation, AsyncStorage + `expo-secure-store`, NetInfo, Victory Native, NativeWind, `react-native-reanimated`, `expo-notifications`. **Sem react-router-dom, sem Service Worker/PWA, sem IndexedDB, sem Recharts, sem Redux/Zustand fora do já decidido em `01` §3.3.**
+  * Frontend: **React Native via Expo** (EAS Build/Submit/Update), React Navigation, `expo-linking` (deep links de verificação de e-mail/reset de senha, `04` §A.1), AsyncStorage + `expo-secure-store`, NetInfo, Victory Native, NativeWind, `react-native-reanimated`, `expo-notifications`, `react-hook-form` + `zod` (validação de formulário, `01` §3.4), `@expo/vector-icons` (MaterialCommunityIcons), `@expo-google-fonts/oswald` + `@expo-google-fonts/inter`, `expo-haptics` (sistema de design, `01` §3.6, `15_DESIGN_SYSTEM_UI_UX.md`, ADR-019). **Sem react-router-dom, sem Service Worker/PWA, sem IndexedDB, sem Recharts, sem Redux, sem Zustand, sem UI-kit pronto (React Native Paper/NativeBase/Tamagui)** — todo estado global é Context API puro (`01` §3.3), componentes-base são construídos manualmente (`15` §H).
   * DevOps: GitHub Actions, Docker (só backend), GitGuardian, EAS (frontend). Deploy em instância única de nuvem.
 * **Motor de negócio central:** o algoritmo de dupla progressão em `06` — nunca reimplemente essa lógica de forma diferente em outro lugar; sempre referencie `06`.
 

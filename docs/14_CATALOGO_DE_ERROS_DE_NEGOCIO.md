@@ -9,14 +9,16 @@ erros programaticamente sem fazer parsing de `message`).
 
 | `errorCode` sugerido | Status HTTP | Endpoint | Condição |
 | :--- | :--- | :--- | :--- |
+| `EMAIL_ALREADY_REGISTERED` | 422 | `POST /auth/register` (§2.1) | `email` informado já existe em `users` (constraint `UNIQUE`, `02_SCHEMA_SQLITE.md`). |
+| `TOO_MANY_LOGIN_ATTEMPTS` | 429 | `POST /auth/login` (§2.2) | 5 falhas consecutivas de login para o mesmo `email` dentro da janela de 15 minutos (`05_DEVOPS_E_SEGURANCA.md` §E.2) — retornado mesmo com credenciais corretas até o cooldown expirar. |
 | `EMAIL_NOT_VERIFIED` | 403 | `POST /auth/login` (§2.2) | `users.email_verified_at IS NULL`. |
 | `ACCOUNT_PENDING_DELETION` | 403 | `POST /auth/login` (§2.2) | `users.deletion_requested_at IS NOT NULL` (`11` §D). |
 | `INVALID_REFRESH_TOKEN` | 401 | `POST /auth/refresh` (§2.4) | Token inválido, expirado ou já revogado. |
 | `INVALID_CURRENT_PASSWORD` | 401 | `POST /users/me/change-password` (§2.9) | `currentPassword` não confere com `password_hash`. |
 | `INVALID_OR_EXPIRED_TOKEN` | 400 | `GET /auth/verify-email/{token}` (§2.6) | Token de verificação inválido ou expirado. |
 | `INVALID_OR_EXPIRED_RESET_TOKEN` | 400 | `POST /auth/reset-password` (§2.7) | Token de reset inválido ou expirado. |
-| `INVALID_PASSWORD` | 401 | `DELETE /users/me` (§2.10) | `password` não confere, ao solicitar exclusão de conta. |
-| `NO_PENDING_DELETION` | 400 | `POST /auth/cancel-deletion` (§2.11) | Não há exclusão pendente para o e-mail, ou o período de carência já expirou. |
+| `INVALID_PASSWORD` | 401 | `DELETE /users/me` (§2.10), `POST /auth/cancel-deletion` (§2.11) | `password` não confere (ou `email`/`password` não formam um par válido, em `cancel-deletion`). |
+| `NO_PENDING_DELETION` | 400 | `POST /auth/cancel-deletion` (§2.11) | Credenciais corretas, mas não há exclusão pendente (`deletion_requested_at IS NULL`) para a conta. |
 | `CYCLE_ACTIVATION_CONFLICT` | 422 | `PATCH /cycles/{cycleId}/activate` (§3.7) | Falha na transação atômica de troca de ciclo ativo (ex: condição de corrida). |
 | `DAY_HAS_EXECUTED_SESSIONS` | 422 | `DELETE /cycles/{cycleId}/days/{dayId}` (§3.10) | O dia já possui pelo menos uma sessão executada (`ON DELETE RESTRICT`). |
 | `EXERCISE_NOT_OWNED` | 403 | `PATCH`/`DELETE /exercises/{exerciseId}` (§4.3-§4.4) | Exercício não é customizado (`isCustom = false`) ou não pertence ao usuário autenticado. |

@@ -17,16 +17,18 @@ O aplicativo será desenvolvido com as seguintes tecnologias principais:
 
 ## 3. Arquitetura Documental do Projeto
 
-Para que a IA de desenvolvimento atue sem erros, o escopo do projeto está dividido em 8 arquivos estritos. Este documento (00) governa os demais:
+Para que a IA de desenvolvimento atue sem erros, o escopo do projeto está dividido em arquivos estritos e numerados. Este documento (00) governa os demais:
 
 1.  **`00_PRD_IRONTRACK.md`**: Este documento (Visão geral e roadmap).
 2.  **`01_ARQUITETURA_E_PADROES.md`**: Regras de código, SOLID e estrutura de pastas.
 3.  **`02_SCHEMA_SQLITE.md`**: Modelagem de dados, diagramas ER e relacionamentos.
 4.  **`03_CONTRATOS_API.md`**: Definição exata de endpoints, requests e responses do Spring Boot.
-5.  **`04_FRONTEND_UI_COMPONENTES.md`**: Árvore de componentes React, estado e roteamento.
+5.  **`04_FRONTEND_UI_COMPONENTES.md`**: Árvore de componentes React Native, estado e roteamento.
 6.  **`05_DEVOPS_E_SEGURANCA.md`**: Regras de pipeline, Docker, segurança de credenciais.
 7.  **`06_LOGICA_DE_PROGRESSAO.md`**: Motor de recomendação de sobrecarga progressiva.
 8.  **`07_ROADMAP_BACKEND.md` & `08_ROADMAP_FRONTEND.md`**: Tarefas de codificação passo a passo.
+9.  **`09` a `14`**: documentos complementares agregados após a rodada inicial de planejamento — relatório de inspeção, estratégia de testes, política de privacidade/retenção, glossário de domínio, log de decisões arquiteturais (ADRs) e catálogo de erros de negócio.
+10. **`15_DESIGN_SYSTEM_UI_UX.md`**: Sistema de design (paleta, tipografia, ícones, motion) e planejamento de posicionamento de UI tela a tela.
 
 ---
 
@@ -57,7 +59,7 @@ O desenvolvimento será guiado pelo seguinte planejamento estruturado em épicos
 
 **Objetivo:** Usuário consegue se cadastrar, fazer login seguro e configurar seu perfil básico[cite: 1].
 
-- **Cadastro de novo usuário (EP-01):** Endpoints e UI para nome, e-mail único e senha forte, com fluxo de verificação por e-mail[cite: 1].
+- **Cadastro de novo usuário (EP-01):** Endpoints e UI para nome, e-mail único e senha forte[cite: 1]. Fluxo de verificação por e-mail **temporariamente desativado** (conta já nasce verificada) — decisão registrada em `13_ADR_LOG.md` ADR-018, reversível sem nova migração.
 - **Login e logout (EP-01):** Implementação baseada em JWT (access e refresh token)[cite: 1], bloqueio temporário de 15 minutos após 5 falhas consecutivas[cite: 1] e armazenamento seguro no frontend[cite: 1].
 - **Recuperação de senha (EP-01):** Envio de link de redefinição com expiração de 1 hora via e-mail[cite: 1].
 - **Perfil do usuário (EP-01):** Edição de nome e e-mail (troca de e-mail exige nova verificação) e troca de senha, exigindo confirmações para alterações sensíveis[cite: 1]. Upload de foto de perfil está fora de escopo do MVP — depende de decisão de infraestrutura de object storage ainda não tomada (`07_ROADMAP_BACKEND.md` §E).

@@ -1,1 +1,50 @@
 .aider*
+
+# --- Backend (Spring Boot / Maven) ---
+backend/target/
+backend/data/*
+!backend/data/.gitkeep
+backend/*.db
+backend/*.db-journal
+backend/*.db-shm
+backend/*.db-wal
+
+# --- Segredos (nunca commitar .env real - 01_ARQUITETURA_E_PADROES.md §6.1) ---
+.env
+backend/.env
+*.env
+!.env.example
+!backend/.env.example
+
+# --- IDE ---
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+
+# --- Frontend (Node/Expo) ---
+frontend/node_modules/
+frontend/.expo/
+frontend/coverage/
+frontend/*.tsbuildinfo
+# Pastas nativas geradas por `expo prebuild` — o projeto é managed workflow
+# (01_ARQUITETURA_E_PADROES.md §3, ADR-004), nunca commitadas.
+frontend/android/
+frontend/ios/
+
+# --- Expo CLI: cache local, nunca deve existir fora de frontend/ ---
+# (se aparecer na raiz, é sinal de um comando expo rodado no diretório errado)
+/.expo/
+
+# --- Ferramentas locais baixadas sob demanda (ex: JDK portátil), nunca versionar ---
+/.tools/
+
+# --- Sistema operacional / editores (qualquer camada) ---
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log
+*.swp
+*~

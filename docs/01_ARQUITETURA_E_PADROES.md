@@ -74,6 +74,20 @@ com.irontrack.api/
 * **Princípio da Responsabilidade Única (SRP):** Cada serviço deve tratar de uma única regra ou entidade de negócio agregada. Classes com mais de 300 linhas devem ser revisadas e candidatas a refatoração.
 * **Princípio do Aberto/Fechado (OCP):** Motores de cálculo, como a lógica de progressão, devem ser extensíveis por meio de polimorfismo, evitando cadeias excessivas de condicionais `if-else` para novos tipos de exercícios.
 
+### 2.4. Versões e Bibliotecas de Referência (Backend)
+
+Decisões fechadas para eliminar ambiguidade de escolha de biblioteca na hora de codificar — nenhuma delas deve ser trocada sem uma nova decisão Tipo B explícita (`AGENTS.md` §3). Justificativa completa de cada uma em `13_ADR_LOG.md` (ADR-012 a ADR-014).
+
+| Necessidade | Decisão | Observação |
+| :--- | :--- | :--- |
+| Versão do Java | **21** (LTS) | Já implícito no `Dockerfile` (`05_DEVOPS_E_SEGURANCA.md` §A.1, `eclipse-temurin:21`) — formalizado aqui como decisão explícita, não apenas um detalhe de infraestrutura. |
+| Versão do Spring Boot | **3.3.x** (última versão patch da linha 3.3 disponível no momento de `mvn archetype`/`start.spring.io`) | Traz Spring Security 6.x, Spring Data JPA atualizado e suporte nativo a Java 21 (virtual threads disponíveis, embora não obrigatórias de usar nesta versão do produto). |
+| Geração/validação de JWT | **`io.jsonwebtoken:jjwt`** (`jjwt-api`/`jjwt-impl`/`jjwt-jackson`, versão `0.12.x`) | Assinatura HMAC simétrica (`JWT_SECRET_KEY`, `05_DEVOPS_E_SEGURANCA.md` §D) — biblioteca madura, API fluente, sem dependências transitivas pesadas. |
+| Migração de schema | **Flyway** (somente `org.flywaydb:flyway-core` — o suporte a SQLite já vem embutido nele; **`flyway-database-sqlite` não existe como artefato publicado no Maven Central**, confirmado ao implementar a Sprint 0 do backend — corrigido aqui após a implementação real) | Deixa de ser "recomendação" (como constava antes em `07_ROADMAP_BACKEND.md` §C.0) e passa a ser mandato — um arquivo de migration versionado por tabela/alteração (`V1__create_users.sql`, `V2__create_refresh_tokens.sql`, ...), em `src/main/resources/db/migration`, na ordem de dependência de FK já refletida em `02_SCHEMA_SQLITE.md` §2. |
+| Hash de senha | **`BCryptPasswordEncoder`** (Spring Security, já embutido) | Consistente com o formato `$2a$12$...` já usado nos exemplos de seed de `02_SCHEMA_SQLITE.md` §3.1. |
+| Bean Validation | **`spring-boot-starter-validation`** (Hibernate Validator, bundled) | Já pressuposto por `01` §2.2 (anotações `@Valid`/`@NotNull`/`@Size`) — formalizado aqui como dependência explícita do `pom.xml`, não implícita. |
+| DTOs imutáveis | **Java `record`** (linguagem nativa, sem biblioteca) | Já orientado em `01` §2.2 — sem Lombok: `record` cobre o caso de uso de DTO imutável nativamente desde o Java 17, e entidades JPA usam getters/setters explícitos (não-record, por exigência do JPA de construtor vazio e proxies) para evitar introduzir Lombok apenas para metade das classes do projeto. |
+
 ---
 
 ## 3. Estrutura de Diretórios - Frontend (React Native + TypeScript)
@@ -86,7 +100,7 @@ app/                       # Ou src/, conforme convenção do Expo Router ou nav
 │
 ├── assets/                # Ícones, fontes, imagens, splash screen
 ├── components/
-│   ├── common/            # Componentes atômicos (Button, Input, Card, Modal) — NativeWind
+│   ├── common/            # Componentes atômicos (Button, Input, Card, Modal, Toast) — NativeWind
 │   └── layout/            # Componentes de estrutura (Header, TabBar customizado)
 ├── screens/                # Telas (equivalente a "pages" no mundo web)
 │   ├── Auth/               # LoginScreen, RegisterScreen, VerifyEmailScreen, etc.
@@ -118,9 +132,43 @@ Para maximizar a reutilização e simplificar os testes unitários da interface,
   * São altamente portáveis e não possuem conhecimento direto sobre APIs, navegação ou estados globais de autenticação.
 
 ### 3.3. Gerenciamento de Estado Global e Cache de Requisições
-* **Estado Global Leve:** Para dados essenciais de segurança e experiência que necessitam permear múltiplos fluxos (ex: sessão do usuário ativa, preferências visuais), deve-se usar o **React Context API** (continua válido em React Native — não é uma API exclusiva do DOM/navegador) ou uma ferramenta minimalista como **Zustand**.
+* **Estado Global Leve:** Para dados essenciais de segurança e experiência que necessitam permear múltiplos fluxos (ex: sessão do usuário ativa, preferências visuais), usa-se exclusivamente o **React Context API** (continua válido em React Native — não é uma API exclusiva do DOM/navegador). **Decisão fechada:** nenhum estado global deste produto usa Zustand — todo estado global existente (`AuthContext`, `WorkoutSessionContext`, `NetworkStatusContext`) é Context API puro (com `useReducer` onde o estado é hierárquico, `04_FRONTEND_UI_COMPONENTES.md` §D.1). Zustand **não é uma dependência deste projeto**; não deve ser instalado nem introduzido em nenhuma sprint — se um caso de uso genuinamente exigir uma store fora de Context no futuro, isso é uma decisão Tipo B nova, não uma opção já pré-aprovada.
 * **Estado de Sessão de Treino Ativo:** O progresso imediato de uma sessão de treino em execução (cronômetro, séries executadas, temporizador de descanso) deve ser controlado em um Contexto dedicado (`WorkoutSessionContext`) persistido continuamente no armazenamento local para resiliência ao app ser minimizado ou encerrado pelo sistema operacional.
 * **Cache de Requisições:** Para chamadas de rede repetitivas, implementa-se um wrapper customizado de cache local com expiração controlada na camada de `services/apiClient.ts` para otimizar consumo de dados e habilitar consultas rápidas no modo offline.
+
+### 3.4. Validação de Formulários
+
+**Decisão fechada:** todo formulário do app (`LoginScreen`, `RegisterScreen`, `ForgotPasswordScreen`, `ResetPasswordScreen`, `ProfileScreen`, `CycleFormScreen`, criação/edição de exercício em `ExercisesLibraryScreen`) usa **`react-hook-form`** para controle de estado/submissão do formulário e **`zod`** para o schema de validação, conectados via `@hookform/resolvers/zod`. Justificativa completa em `13_ADR_LOG.md` (ADR-015).
+
+* Cada tela com formulário define seu próprio schema `zod` próximo ao componente (ex: `LoginScreen.schema.ts`), espelhando exatamente as regras de negócio já fechadas em `03_CONTRATOS_API.md` (ex: senha mínimo 8 caracteres com letras e números, `03` §2.7) — nunca uma regra de validação nova inventada na camada de UI que não exista no contrato da API.
+* Mensagens de erro de validação client-side são independentes das mensagens de erro do backend (`03_CONTRATOS_API.md` §1.4) — a validação client-side é uma otimização de UX (feedback antes do round-trip de rede), nunca a única camada de validação; o backend sempre revalida, mesmo que o client já tenha validado.
+
+### 3.5. Versão Travada do Expo SDK
+
+**Decisão fechada, sem exceção (`13_ADR_LOG.md`, ADR-017):** este projeto usa
+**Expo SDK 54**, e nenhuma outra versão — nunca escalone via `@latest`.
+
+* **Criação/recriação do projeto:** `npx create-expo-app@latest` seguido
+  imediatamente de fixar o SDK: `npx expo install expo@54.0.0` e depois
+  `npx expo install --fix` (comando oficial da Expo que realinha
+  `react-native`, `react` e todos os pacotes `expo-*` para a combinação de
+  versões correta e mutuamente compatível daquele SDK — **nunca** escolha
+  manualmente a versão de `react-native`/`react`; deixe a própria Expo
+  resolver isso).
+* **Instalação de qualquer nova dependência gerenciada pela Expo**
+  (`expo-*`, `react-native-*` que tenham um módulo nativo): sempre via
+  `npx expo install <pacote>`, nunca `npm install <pacote>` diretamente —
+  `expo install` já resolve a versão compatível com o SDK 54 travado.
+* **Verificação de sanidade:** rode `npx expo-doctor` sempre que houver
+  dúvida sobre compatibilidade de versões — deve retornar sem avisos de
+  incompatibilidade de SDK.
+* **Upgrade de SDK no futuro** (para 55, 56, etc.) é uma decisão Tipo B
+  nova (`AGENTS.md` §3), nunca algo que aconteça incidentalmente por rodar
+  um comando sem versão fixada.
+
+### 3.6. Sistema de Design (Cores, Tipografia, Ícones, Motion)
+
+**Decisão fechada (`13_ADR_LOG.md`, ADR-019):** a especificação visual completa do app — paleta (dark-only, monocromática, único acento vermelho neon), tipografia (Oswald + Inter), iconografia (`@expo/vector-icons`, MaterialCommunityIcons), motion (`react-native-reanimated`) e o planejamento de posicionamento de cada tela — vive em [`04_FRONTEND_UI_COMPONENTES.md`](./04_FRONTEND_UI_COMPONENTES.md) (arquitetura/navegação) e, principalmente, em [`15_DESIGN_SYSTEM_UI_UX.md`](./15_DESIGN_SYSTEM_UI_UX.md) (tokens visuais e planejamento de tela) — não duplicada aqui. Três novas dependências nascem desta decisão: `@expo-google-fonts/oswald`, `@expo-google-fonts/inter`, `expo-haptics` (instalação via `npx expo install`, mesma regra da Seção 3.5 acima).
 
 ---
 
@@ -176,7 +224,7 @@ A comunicação HTTP no frontend deve ser centralizada em uma instância compart
 | **React** | Hooks Customizados | `camelCase` (Prefixo `use`) | `useActiveWorkout` |
 | **React** | Variáveis, Funções e Props | `camelCase` | `onSetComplete` |
 | **SQLite** | Nomes de Tabelas | `snake_case` (Plural) | `training_cycles`, `exercise_sets` |
-| **SQLite** | Nomes de Colunas | `snake_case` | `hold_time_seconds`, `created_at` |
+| **SQLite** | Nomes de Colunas | `snake_case` | `load_increment_kg`, `created_at` |
 
 ### 5.2. Padrão de Commits (Conventional Commits)
 Todas as alterações no repositório de código do IronTrack devem seguir a especificação de Commits Convencionais, para facilitar a automação de releases e rastreabilidade:
@@ -209,55 +257,10 @@ Todas as alterações no repositório de código do IronTrack devem seguir a esp
 
 ---
 
-## 7. Flexibilidade de Domínio (Requisito Obrigatório)
+## 7. Escopo de Domínio: Exclusivamente Musculação
 
-O núcleo de negócios do IronTrack **não pode ser amarrado exclusivamente ao modelo clássico de musculação** (onde cada série de exercício registra apenas *carga* e *repetições*). O domínio deve suportar nativamente três grandes categorias de evolução física:
+> **Histórico:** esta seção já foi corrigida duas vezes por decisão explícita do usuário. Detalhes completos (o que exigia antes, por que foi revertido) em `13_ADR_LOG.md`, ADR-012 e ADR-016 — não repetidos aqui para não reintroduzir na Constituição Técnica (documento de leitura sempre obrigatória, `AGENTS.md` §1) o mesmo vocabulário que motivou a correção.
 
-### 7.1. Modelagem Genérica e Flexível de Exercícios
-Para acomodar a calistenia, o powerlifting tradicional e o treinamento de isometrias complexas, o sistema deve classificar os exercícios sob um modelo tipado e polimórfico:
+O IronTrack é, em todas as camadas, **exclusivamente musculação clássica e hipertrofia** (carga, repetições, séries, RPE, técnicas de intensificação — `00_PRD_IRONTRACK.md`, `03_CONTRATOS_API.md` §1.1). `02_SCHEMA_SQLITE.md` não possui nenhuma coluna, tabela ou enum fora desse modelo. O motor de sobrecarga progressiva (`06_LOGICA_DE_PROGRESSAO.md`) é a especificação final e **única** — cobre carga/repetições, ponto final, sem branches para nenhuma outra modalidade de treino.
 
-1. **Treino de Força Tradicional (Musculação/Powerlifting):**
-   * Métricas principais: **Carga** (peso em kg ou lbs), **Repetições** alcançadas, **Repetições Alvo** e Técnicas aplicadas (ex: falha, drop-set, rest-pause).
-2. **Treino Isométrico (Calistenia/Ginástica):**
-   * Métricas principais: **Tempo de Isometria** (segundos mantidos), **Nível de Postura** (ex: tucked, advanced tucked, single leg, full) e **Grau de Esforço** (RPE).
-3. **Treino de Habilidade / Progressão de Movimento (Calistenia complexa - Ex: Muscle-Up):**
-   * Métricas principais: **Step/Fase de Progressão** (fase incremental de facilitação, ex: Step 1: Barra fixa com impulso, Step 2: Barra fixa explosiva, Step 3: Negativa de Muscle-up, Step 4: Muscle-up completo), **Repetições** e **Nível de Controle**.
-
-### 7.2. Abordagem no Banco de Dados SQLite (Polimorfismo de Séries)
-A tabela que registra as séries de uma sessão (`exercise_sets`) deve conter colunas flexíveis e anuláveis, de forma a persistir de forma concisa cada uma dessas categorias sem forçar layouts diferentes ou dados fictícios:
-
-```sql
--- Exemplo conceitual de estrutura flexível para exercise_sets
-CREATE TABLE exercise_sets (
-    id TEXT PRIMARY KEY,
-    session_exercise_id TEXT NOT NULL,
-    set_number INTEGER NOT NULL,
-    
-    -- Campos para Musculação Tradicional
-    weight REAL NULL,                   -- Peso utilizado
-    reps INTEGER NULL,                  -- Repetições realizadas
-    reps_target INTEGER NULL,           -- Repetições planejadas
-    
-    -- Campos para Calistenia Isométrica
-    hold_time_seconds INTEGER NULL,     -- Tempo de isometria mantido
-    hold_time_target INTEGER NULL,      -- Tempo de isometria planejado
-    
-    -- Campos para Progressões de Habilidade
-    progression_step_id TEXT NULL,      -- FK para a tabela de passos da progressão do movimento
-    
-    -- Campo Comum de Esforço
-    rpe INTEGER NULL,                   -- Rate of Perceived Exertion (1 a 10)
-    notes TEXT NULL,                    -- Técnicas aplicadas ou anotações (ex: "rest-pause")
-    
-    FOREIGN KEY (session_exercise_id) REFERENCES session_exercises(id),
-    FOREIGN KEY (progression_step_id) REFERENCES progression_steps(id)
-);
-```
-
-### 7.3. Adaptação dos Motores de Progressão
-Os serviços responsáveis por sugerir a evolução de treino do usuário (Motor de Sobrecarga Progressiva) devem conter ramificações polimórficas (através de padrões de projeto como *Strategy* ou *Factory*), adaptando-se instantaneamente com base no tipo de exercício registrado:
-* **Se o exercício for tradicional:** Sugerir aumento de carga ou repetições.
-* **Se o exercício for isométrico:** Sugerir aumento no tempo de sustentação (Hold Time) ou avanço para a postura subsequente de menor facilitação.
-* **Se o exercício for de habilidade:** Sugerir evolução para o próximo `progression_step` ou aumento de volume na fase atual.
-
-Esta modularidade garante que a aplicação atenda plenamente aos públicos de musculação tradicional e calistenia avançada.
+Se o produto um dia quiser suportar outras modalidades de treino, isso exige uma decisão de escopo Tipo B explícita (`AGENTS.md` §3) e uma extensão de schema feita naquele momento — não há nenhuma preparação antecipada para isso hoje, por decisão deliberada de manter o modelo de dados o mais simples possível para o escopo atual do produto.
