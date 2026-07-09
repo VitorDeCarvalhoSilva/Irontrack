@@ -61,7 +61,7 @@ documento assume as decisões dos anteriores como já resolvidas.
 
 ### Governança de Agentes de IA
 
-Este projeto é construído com apoio intenso de agentes de IA. Dois arquivos
+Este projeto é construído com apoio de agentes de IA. Dois arquivos
 na raiz do repositório governam esse trabalho:
 
 * **[`AGENTS.md`](AGENTS.md)** — leitura obrigatória para qualquer agente
